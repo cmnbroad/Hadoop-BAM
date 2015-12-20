@@ -4,9 +4,15 @@ import hbparquet.hadoop.util.ContextUtil;
 import htsjdk.samtools.CRAMIterator;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.cram.ref.ReferenceSource;
+import htsjdk.samtools.reference.ReferenceSequenceFile;
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.seekablestream.SeekableStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Paths;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
@@ -37,9 +43,17 @@ public class CRAMRecordReader extends RecordReader<LongWritable, SAMRecordWritab
     final FileSplit fileSplit = (FileSplit) split;
     final Path file  = fileSplit.getPath();
 
-    String refSourcePath = conf.get(CRAMInputFormat.REFERENCE_SOURCE_PATH_PROPERTY);
-    ReferenceSource refSource = refSourcePath == null ? new ReferenceSource() :
-        new ReferenceSource(new File(refSourcePath)); // TODO: support HDFS
+    final String refSourcePath = conf.get(CRAMInputFormat.REFERENCE_SOURCE_PATH_PROPERTY);
+    ReferenceSource refSource = null;
+    try {
+      refSource = refSourcePath == null ?
+              new ReferenceSource() :
+              new ReferenceSource(ReferenceSequenceFileFactory.getReferenceSequenceFile((Paths.get(new URI(refSourcePath)))));
+    } catch (URISyntaxException e){
+      throw new RuntimeException(e);
+    }
+
+    //new ReferenceSource(new File(refSourcePath)); // TODO: support HDFS
 
     seekableStream = WrapSeekable.openPath(conf, file);
     start = fileSplit.getStart();

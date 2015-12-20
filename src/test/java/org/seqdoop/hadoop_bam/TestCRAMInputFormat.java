@@ -1,15 +1,21 @@
 package org.seqdoop.hadoop_bam;
 
 import hbparquet.hadoop.util.ContextUtil;
-import htsjdk.samtools.SAMRecord;
-import htsjdk.samtools.SamReader;
-import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.*;
+import htsjdk.samtools.cram.ref.ReferenceSource;
+import htsjdk.samtools.reference.ReferenceSequenceFile;
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+
+import junit.framework.Assert;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -76,6 +82,28 @@ public class TestCRAMInputFormat {
   public void testGetSplits_SpanningContainerBoundary() throws IOException {
     // original splits = 0+1000, 1000+1000, 2000+1000, 3000+433
     checkSplits(1000);
+  }
+
+  // Requires a local hdfs file system
+  @Test
+  public  void testHadoopCRAM() throws Exception{
+    URI uri = new URI("hdfs://localhost:9000/count_reads.fasta");
+    java.nio.file.Path path = Paths.get(uri);
+    ReferenceSequenceFile rsf = ReferenceSequenceFileFactory.getReferenceSequenceFile(path);
+    ReferenceSource source = new ReferenceSource(rsf);
+    byte[] sequence = source.getReferenceBases(new SAMSequenceRecord("chr1", 1), true);
+    String seqString = new String(sequence);
+    assertEquals(seqString, "TTCATGCTGAAGCCCTCTTACGATCGTACAGATGCAAATATTAACAAACCTTTAAGGGCAAAAAAAAAACAATACAATAATAGAGTACGTTAACACTCCAA");
+    //File index = null;
+    CRAMFileReader cramReader = new CRAMFileReader(
+            new File("/home/chris/projects/hellbender/src/test/resources/org/broadinstitute/hellbender/tools/count_reads.cram"), source);
+    Iterator<SAMRecord> it = cramReader.getIterator();
+    int count = 0;
+    while (it.hasNext()) {
+      SAMRecord rec = it.next();
+      count++;
+    }
+    assertEquals(count, 8);
   }
 
   @Test
